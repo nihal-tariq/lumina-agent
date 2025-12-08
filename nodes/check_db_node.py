@@ -20,15 +20,12 @@ def check_db_node(state: State) -> State:
     # 2. Extract the URL to check
     urls = state.get("URL", [])
     if not urls:
-        return {"TimeStamp": "NULL", "info": "No URL provided to check.", "summary": "NULL" }
+        return {"TimeStamp": "NULL", "info": "No URL provided to check.", "summary": "NULL"}
 
     target_url = urls[-1] if isinstance(urls, list) else urls
 
     # 3. Database Connection
     database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
-        # Fallback for testing if env var is missing
-        database_url = "postgresql://neondb_owner:npg_ldWU2aIuHv9R@ep-green-unit-adoucn1n-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
     db = SQLDatabase.from_uri(database_url)
 
