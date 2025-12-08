@@ -20,7 +20,7 @@ def lookup_university_smart(query: str):
     Uses an internal LLM to analyze retrieved documents and extract the Official URL and Name.
     Use this to find the URL for a university.
     """
-    api_key = "AIzaSyCXjChsmIUb4igBGrOxfvXUpxFSBeO2qh0"
+
     print(f"🔍 RAG Tool: Searching knowledge base for '{query}'...")
 
     try:
