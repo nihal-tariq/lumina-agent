@@ -87,5 +87,3 @@ def lookup_university_smart(query: str):
 
     except Exception as e:
         return json.dumps({"found": False, "error": str(e)})
-
-

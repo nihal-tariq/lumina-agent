@@ -5,7 +5,7 @@ def human_review_node(state: State):
     """INTERRUPT: Shows post to user and asks for input."""
 
     print("\n" + "=" * 40)
-    print("👀 HUMAN REVIEW REQUIRED")
+    print("HUMAN REVIEW REQUIRED")
     print("=" * 40)
     print(f"TOPIC: {state['topic']}")
     print(f"HEADING: {state['post_heading']}")

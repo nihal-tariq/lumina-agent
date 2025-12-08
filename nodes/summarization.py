@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 from datetime import datetime, timezone
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import BaseMessage,HumanMessage,SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from state import State
 from db.operations import insert_university
@@ -40,7 +40,9 @@ def summarize(state: State) -> State:
 
     # 3. Define the detailed system prompt (provided by the user)
     system_prompt = f'''
-You are a highly precise and careful information extraction assistant. Your task is to process raw, unstructured input (which may include HTML tags, noisy text, or other formatting artifacts) and generate a clean, detailed, and accurate summary. Follow these instructions exactly:
+You are a highly precise and careful information extraction assistant. Your task is to process raw, 
+unstructured input (which may include HTML tags, noisy text, or other formatting artifacts) and 
+generate a clean, detailed, and accurate summary. Follow these instructions exactly:
 
 Clean the Input:
 
@@ -55,7 +57,8 @@ University Names – any mentioned institutions.
 Important Dates – admission deadlines, exam dates, merit list announcements, registration dates, results, etc.
 Events – seminars, workshops, orientation sessions, or other relevant events.
 Policies or Guidelines – any official notices, instructions, or updates.
-Announcements – notifications about exams, admissions, scholarships, merit lists, results, or other official communications.
+Announcements – notifications about exams, admissions, scholarships, merit lists, results, 
+or other official communications.
 Any Other Important Content – any information that affects students, faculty, or stakeholders.
 
 Rules for extraction:
@@ -88,7 +91,8 @@ Output:
 
 Provide a clean, detailed, human-readable summary ready to be read or distributed.
 
-Make sure the output is concise but comprehensive, including every important piece of information extracted from the raw input.
+Make sure the output is concise but comprehensive, 
+including every important piece of information extracted from the raw input.
 
 Tone & Style:
 

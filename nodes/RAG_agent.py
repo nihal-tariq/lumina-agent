@@ -6,7 +6,7 @@ from google import genai
 
 from state import State
 
-GEMINI_API_KEY= os.environ.get("GEMINI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 client = genai.Client()
 
@@ -37,7 +37,7 @@ def rag_agent_node(state: State) -> State:
         collection_name = "university_db"
         chroma_client = PersistentClient(path=persist_dir)
         collection = chroma_client.get_or_create_collection(name=collection_name)
-        # For RAG we embed last_user via Gemini embeddings and query Chroma
+
         embed_result = client.models.embed_content(
             model="gemini-embedding-001",
             contents=last_user

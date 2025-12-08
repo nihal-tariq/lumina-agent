@@ -1,7 +1,12 @@
 import uuid
 from langchain_core.messages import HumanMessage
 
+
+from chroma_setup import get_or_create_knowledge_base
 from Graph import agent
+
+
+collection = get_or_create_knowledge_base("lumina_dataset.xlsx")
 
 
 def run_interactive_session():
