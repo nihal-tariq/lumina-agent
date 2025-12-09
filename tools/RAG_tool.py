@@ -10,7 +10,7 @@ from utils.BaseModels import RetrievedKnowledge
 
 load_dotenv(override=True)
 
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY")
 
 
 @tool
@@ -20,6 +20,12 @@ def lookup_university_smart(query: str):
     Uses an internal LLM to analyze retrieved documents and extract the Official URL and Name.
     Use this to find the URL for a university.
     """
+    if api_key:
+        print(f"🔴 DEBUG: Key currently in use starts with: {api_key[:30]}...")
+        print(f"🔴 DEBUG: Key length: {len(api_key)}")
+    else:
+        print("🔴 DEBUG: No GOOGLE_API_KEY found in environment!")
+
 
     print(f"🔍 RAG Tool: Searching knowledge base for '{query}'...")
 
@@ -33,7 +39,7 @@ def lookup_university_smart(query: str):
         collection = chroma_client.get_or_create_collection(name=collection_name)
 
         # Embed the query
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", api_key=api_key)
         query_vector = embeddings.embed_query(query)
 
         # Query Chroma (Fetch top 4 chunks for broader context)

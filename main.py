@@ -11,12 +11,9 @@ collection = get_or_create_knowledge_base("lumina_dataset.xlsx")
 
 def run_interactive_session():
     print("\n" + "=" * 50)
-    print("🛠️  AI SOCIAL MEDIA AGENT (Human-in-the-Loop)")
+    print(" AI SOCIAL MEDIA AGENT ")
     print("=" * 50)
 
-    # 1. Capture User Intent
-    # This text acts as the "kickstarter" for your chat_node.
-    # Ex: "I need a post about UCP Admissions" or just "Harvard"
     user_query = input("Enter Topic, University Name, or URL: ").strip()
 
     try:

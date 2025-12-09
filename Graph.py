@@ -17,7 +17,7 @@ from routes.db_route import route_based_on_timestamp
 from state import State
 from db.db import create_tables
 
-load_dotenv()
+load_dotenv(override=True)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 

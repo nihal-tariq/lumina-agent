@@ -6,10 +6,16 @@ from google import genai
 
 from state import State
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+api_key = os.environ.get("GOOGLE_API_KEY")
 
-client = genai.Client()
+client = genai.Client(api_key=api_key)
 
+
+if api_key:
+    print(f"🔴 DEBUG: Key currently in use starts with: {api_key[:30]}...")
+    print(f"🔴 DEBUG: Key length: {len(api_key)}")
+else:
+    print("🔴 DEBUG: No GOOGLE_API_KEY found in environment!")
 
 def rag_agent_node(state: State) -> State:
     """
@@ -19,6 +25,14 @@ def rag_agent_node(state: State) -> State:
       - asks Gemini to return structured JSON with UniversityName, URL, URL_info
     This node does NOT scrape; it only returns the structured fields.
     """
+
+    if api_key:
+        print(f"🔴 DEBUG: Key currently in use starts with: {api_key[:8]}...")
+        print(f"🔴 DEBUG: Key length: {len(api_key)}")
+    else:
+        print("🔴 DEBUG: No GOOGLE_API_KEY found in environment!")
+
+
     msgs = state.get("messages", [])
     last_user = None
     # find last user message

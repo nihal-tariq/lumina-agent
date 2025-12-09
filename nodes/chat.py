@@ -9,7 +9,7 @@ from tools.RAG_tool import lookup_university_smart
 from state import State
 
 
-load_dotenv()
+load_dotenv(override=True)
 
 api_key = os.getenv('GROQ_API_KEY')
 
