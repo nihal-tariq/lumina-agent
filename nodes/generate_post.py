@@ -1,98 +1,96 @@
 import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-
-
 from state import State
 from utils.BaseModels import PostDraft
 
+load_dotenv(override=True)
 
-load_dotenv()
-
-api_key = os.getenv('GROQ_API_KEY')
-
-llm = ChatGroq(
-    model="openai/gpt-oss-120b",
-    api_key=api_key,
-    temperature=0.6
-)
+api_key = os.getenv('EVALUATOR_API_KEY')
+llm = ChatGroq(model="openai/gpt-oss-120b", api_key=api_key, temperature=0.5)
 
 
 def generate_post_node(state: State):
-    """Generates post taking into account EITHER automated feedback OR human feedback."""
+    """Generates a structured post with strict adherence to the summary."""
 
     structured_llm = llm.with_structured_output(PostDraft)
 
-    summary = state["summary"]
-    topic = state["topic"]
+    # Extract context from state
+    summary = state.get("summary", "No summary provided.")
+    topic = state.get("topic", "General Update")
+
+    # We provide these from state to help the LLM avoid guessing
+    ref_urls = ", ".join(state.get("URL", []))
+    ref_time = state.get("TimeStamp", "Check website")
 
     human_feedback = state.get("human_feedback")
-
     evaluator_feedback = state.get("evaluator_feedback")
-
     count = state.get("iteration_count", 0)
+
+    system_instruction = (
+        "### ROLE\n"
+        "You are a University Admissions Official. Your job is to communicate accurate, "
+        "helpful updates to students.\n\n"
+
+        "### STRICT CONTENT RULES\n"
+        "1. NO HALLUCINATION: You must ONLY use the provided Summary. Do not invent fees, dates, or programs.\n"
+        "2. TONE: Professional, encouraging, and clear. Avoid excessive emojis (max 2-3).\n"
+        "3. LENGTH: Concise (100-150 words). Not too long, not too short.\n"
+        "4. DISCLAIMER: The content body MUST end with: 'Please refer to the official website for more details.'\n"
+        "5. DATA FIELDS: Ensure the University Name, URL, and Date are extracted accurately."
+    )
 
     if human_feedback:
         print(f"\n🤖 System: Refining based on HUMAN feedback...")
         prompt = (
-            f"You are a social media expert. The user (human) rejected the previous draft.\n"
+            f"{system_instruction}\n\n"
+            f"### TASK: FIX THE PREVIOUS DRAFT\n"
+            f"The human reviewer rejected the previous post. Fix it strictly based on this feedback:\n"
+            f"🚫 FEEDBACK: {human_feedback}\n\n"
+            f"### CONTEXT DATA\n"
             f"Topic: {topic}\n"
-            f"Original Summary: {summary}\n"
-            f"Human Feedback (CRITICAL - FIX THIS): {human_feedback}\n"
-            f"Generate a revised post heading and content."
+            f"Source URL: {ref_urls}\n"
+            f"Source Date: {ref_time}\n"
+            f"Summary: {summary}\n"
         )
-        # Reset count on human intervention to give the LLM fresh attempts
         count = 0
+
     elif evaluator_feedback:
         print(f"\n🤖 System: Refining based on EVALUATOR feedback...")
+        last_feedback = evaluator_feedback[-1] if evaluator_feedback else "General refinement needed."
         prompt = (
-            f"You are a social media expert. The internal editor rejected the previous draft.\n"
+            f"{system_instruction}\n\n"
+            f"### TASK: REFINE THE DRAFT\n"
+            f"Your internal editor found issues. Fix them:\n"
+            f"🚫 EDITOR ISSUES: {last_feedback}\n\n"
+            f"### CONTEXT DATA\n"
             f"Topic: {topic}\n"
-            f"Original Summary: {summary}\n"
-            f"Editor Feedback: {evaluator_feedback}\n"
-            f"Generate a revised post heading and content."
+            f"Source URL: {ref_urls}\n"
+            f"Source Date: {ref_time}\n"
+            f"Summary: {summary}\n"
         )
     else:
         print(f"\n🤖 System: Generating first draft...")
         prompt = (
-            f"### ROLE \n"
-            f"You are a University Admissions Consultant and Social Media Expert. Your goal is to help students navigate complex admissions information clearly and accurately.\n\n"
-
-            f"### TASK \n"
-            f"Draft a high-value social media post about: '{topic}'.\n"
-            f"Base your response strictly on the following Context Summary.\n\n"
-
-            f"### CONTEXT SUMMARY \n"
-            f"{summary}\n\n"
-
-            f"### CRITICAL GUIDELINES (STRICT COMPLIANCE REQUIRED) \n"
-            f"1. NO HALLUCINATIONS: Do not invent dates, fees, eligibility criteria, or URL links. If a piece of information is not explicitly in the summary, do not include it. \n"
-            f"2. DATES ARE VITAL: You must identify and list ALL dates mentioned (application deadlines, entry test dates, merit list displays). Do not skip any.\n"
-            f"3. CLARITY: Use professional but encouraging language suitable for aspiring university students.\n"
-
-            f"### OUTPUT FORMAT \n"
-            f"Return the response in the following structured format:\n\n"
-
-            f"**HEADLINE:** [Create a  relevant headline]\n\n"
-
-            f"**POST CONTENT:**\n"
-            f"[Write the engaging body of the post here. Clearly mention the name of the institute in the content body. Explain the opportunity, why it matters, and general requirements based on the summary.]\n\n"
-
-            f"**📅 IMPORTANT DATES:**\n"
-            f"[Bulleted list of all specific dates found in the text. If no dates are provided in the summary, write 'Please check the official website for updated schedules.']\n\n"
-
-            f"**📝 ACTION ITEMS:**\n"
-            f"[Clear next steps for the student based on the summary (e.g., 'Apply online,' 'Prepare documents').]"
-            f" Return Heading and Content"
+            f"{system_instruction}\n\n"
+            f"### TASK: DRAFT NEW POST\n"
+            f"Create a social media update for the following topic.\n\n"
+            f"### CONTEXT DATA\n"
+            f"Topic: {topic}\n"
+            f"Source URL: {ref_urls}\n"
+            f"Source Date: {ref_time}\n"
+            f"Summary: {summary}\n"
         )
 
     response = structured_llm.invoke(prompt)
 
     return {
+        "university_name": response.university_name,
         "post_heading": response.post_heading,
         "post_content": response.post_content,
+        "relevant_url": response.relevant_url,
+        "timestamp": response.timestamp,
         "iteration_count": count + 1,
-        # Clear feedbacks after use so they don't persist wrongly
         "human_feedback": None,
         "evaluator_feedback": None
     }
