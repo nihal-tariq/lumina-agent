@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal,  Optional
+from typing import Literal,  Optional, List
 
 
 class IntakeComplete(BaseModel):
@@ -14,20 +14,19 @@ class RetrievedKnowledge(BaseModel):
     """The intelligent extraction from the vector database documents."""
     found: bool = Field(description="True if relevant university info was found in the context.")
     official_name: str = Field(description="The canonical name of the university found in text.")
-    official_url: Optional[str] = Field(description="The main website URL extracted from the context. Return None if not explicitly present.")
+    official_url: Optional[str] = Field(description="The main website URL extracted from the context. "
+                                                    "Return None if not explicitly present.")
     key_info: str = Field(description="A brief 2-sentence summary of what this entity is based on the text.")
 
 
 class PostDraft(BaseModel):
-    post_heading: str = Field(description="A catchy, engaging headline for the post.")
-    post_content: str = Field(description="The main body content of the social media post.")
+    university_name: str = Field(description="The explicit name of the university or institution.")
+    post_heading: str = Field(description="A catchy but professional headline. No clickbait.")
+    post_content: str = Field(description="The main body text. Engaging, concise, limited emojis.")
+    relevant_url: str = Field(description="The specific URL mentioned in the source for students to visit.")
+    timestamp: str = Field(description="Key dates, deadlines, or the timestamp of the news.")
 
 
-# The structure required for the Evaluator's output
 class Feedback(BaseModel):
-    grade: Literal["good", "needs_improvement"] = Field(
-        description="Decide if the post is high quality and accurate to the summary."
-    )
-    feedback: str = Field(
-        description="Specific instructions on how to fix wording, tone, or missing details if needs_improvement."
-    )
+    grade: str = Field(description="The grade of the post: 'good' or 'bad'.")
+    feedback: Optional[str] = Field(description="Specific reasons for rejection if grade is bad. If good, leave empty.")
