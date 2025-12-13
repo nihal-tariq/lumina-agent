@@ -30,4 +30,3 @@ def scrape_with_jina_node(state: State) -> State:
         "Content": combined,
         "TimeStamp": current_time.isoformat()
     }
-

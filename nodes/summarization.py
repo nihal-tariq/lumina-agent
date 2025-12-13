@@ -3,13 +3,13 @@ import os
 from dotenv import load_dotenv
 
 from datetime import datetime, timezone
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from state import State
 from db.operations import insert_university
 
-load_dotenv()
+load_dotenv(override=True)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
@@ -32,7 +32,7 @@ def summarize(state: State) -> State:
     # mapping the user's requested 'gemini-2.5-flash-lite' intention.
     # Temperature is set to 0 for maximum factual accuracy and less creativity.
     try:
-        model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        model = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
     except Exception as e:
         print(f"Error initializing ChatGoogleGenerativeAI: {e}")
         state["summary"] = f"ERROR: Model initialization failed: {str(e)}"
