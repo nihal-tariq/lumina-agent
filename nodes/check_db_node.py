@@ -1,136 +1,145 @@
 import os
 import json
 import re
+from typing import Optional
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
 
+
+# Import your State definition
 from state import State
 
+load_dotenv(override=True)
 
-def check_db_node(state: State) -> State:
-    """
-    LangGraph node that queries the 'university' table for a specific URL.
-    Returns URL: <url>, TIME_STAMP: <timestamp> or URL: NULL, TIME_STAMP: NULL.
-    """
+# --- 1. SETUP RESOURCES ONCE (Not inside the node) ---
+# This prevents reconnecting to DB and recompiling Graph on every request
+api_key = os.getenv('GROQ_API_KEY')
+database_url = os.getenv("DATABASE_URL")
 
-    # 2. Extract the URL to check
-    urls = state.get("URL", [])
-    if not urls:
-        return {"TimeStamp": "NULL", "info": "No URL provided to check.", "summary": "NULL"}
+if not api_key or not database_url:
+    raise ValueError("Missing API Key or Database URL")
 
-    target_url = urls[-1] if isinstance(urls, list) else urls
+db = SQLDatabase.from_uri(database_url)
 
-    # 3. Database Connection
-    database_url = os.environ.get("DATABASE_URL")
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0,
+    api_key=api_key
+)
 
-    db = SQLDatabase.from_uri(database_url)
+# Setup Tools
+sql_toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+tools = sql_toolkit.get_tools()
 
-    # 4. LLM & Toolkit Setup
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
-        temperature=0
-    )
-
-    sql_toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-    tools = sql_toolkit.get_tools()
-
-    # 5. System Prompt
-    # Added explicit instruction to cast Timestamp to string to avoid JSON errors
-    system_prompt = f"""
-You are an intelligent SQL agent whose ONLY job is to search a PostgreSQL table.
+# --- 2. COMPILE THE SUB-AGENT ONCE ---
+system_prompt = """You are a specialized SQL Agent. 
+Your GOAL: Check if a specific URL exists in the 'university' table.
 
 Schema:
     university (
         id SERIAL PRIMARY KEY,
-        uni_name TEXT NOT NULL,
-        url TEXT NOT NULL,
-        summary TEXT NOT NULL,
-        time_stamp TIMESTAMPTZ DEFAULT NOW()
+        uni_name TEXT,
+        url TEXT,
+        summary TEXT,
+        time_stamp TIMESTAMPTZ
     );
 
-Your task:
-1. Generate a PostgreSQL SELECT query to find the row where 'url' matches '{target_url}'.
-2. Retrieve 'uni_name', 'url', 'summary' and 'time_stamp'.
-3. IMPORTANT: The 'time_stamp' returned by the database is an object. You must convert it to a simple ISO STRING in your JSON output.
+INSTRUCTIONS:
+1. Search the 'university' table for the specific URL provided.
+2. If found, return the uni_name, url, summary, and time_stamp.
+3. If not found, explicitly state it is not found.
 
-Structured Output Format:
-Return a single valid JSON object in this format:
-{{
-    "status": "success" or "not_found",
-    "data": {{
-        "uni_name": "string value",
-        "url": "string value",
-        "summary": "string value",
-        "time_stamp": "YYYY-MM-DDTHH:MM:SS+00:00" 
-    }}
-}}
-
-If no row is found, set "status" to "not_found" and "data" to null.
-Provide ONLY the JSON. No markdown, no explanation.
+CRITICAL OUTPUT FORMAT:
+You must end your response with a JSON block. Do not include markdown formatting like ```json.
+The JSON must look exactly like this:
+{
+    "status": "success",
+    "data": {
+        "uni_name": "...",
+        "url": "...",
+        "summary": "...",
+        "time_stamp": "YYYY-MM-DD..."
+    }
+}
+OR if not found:
+{
+    "status": "not_found", 
+    "data": null
+}
 """
 
-    # 6. Create the Agent
-    # Using create_react_agent from langgraph.prebuilt is standard for nodes
-    agent_executor = create_agent(llm, tools, system_prompt=system_prompt)
+# We compile the graph here, globally.
+# This 'sql_agent' is now a reusable Runnable.
+sql_agent = create_agent(llm, tools, system_prompt=system_prompt)
 
-    # 7. Invoke the Agent
-    query_message = f"Check if this URL exists in the database: {target_url}"
-    result = agent_executor.invoke({"messages": [HumanMessage(content=query_message)]})
 
-    # 8. Process Response with Robust Parsing
-    last_message = result["messages"][-1].content
+# --- 3. THE NODE (Lightweight & Fast) ---
+def check_db_node(state: State) -> State:
+    """
+    LangGraph node that invokes the pre-compiled SQL Agent.
+    """
+    # 1. Get Input
+    urls = state.get("URL", [])
+    if not urls:
+        return {"TimeStamp": "NULL", "info": "No URL provided.", "summary": "NULL"}
 
-    # Use Regex to find the first JSON object { ... }
-    # This ignores "Here is your JSON:" text that often breaks parsers
+    target_url = urls[-1] if isinstance(urls, list) else urls
+
+    # 2. Invoke the Pre-Compiled Agent
+    query_message = f"Check database for this URL: {target_url}"
+
+    # We invoke the agent with its own internal state
+    # We use a distinct thread_id if you want isolation, but for a stateless lookup, it's fine.
+    agent_result = sql_agent.invoke({"messages": [HumanMessage(content=query_message)]})
+
+    # 3. Parse Output
+    last_message = agent_result["messages"][-1].content
+
+    # Robust JSON Extraction
     json_match = re.search(r'\{.*\}', last_message, re.DOTALL)
 
     extracted_data = {}
     status = "error"
 
     if json_match:
-        json_str = json_match.group(0)
         try:
-            data_dict = json.loads(json_str)
+            # Clean up potential markdown artifacts just in case
+            clean_json = json_match.group(0).replace("```json", "").replace("```", "")
+            data_dict = json.loads(clean_json)
             status = data_dict.get("status")
             extracted_data = data_dict.get("data")
         except json.JSONDecodeError:
+            print(f"DEBUG: JSON Parse Error. Raw content: {last_message}")
             status = "json_error"
     else:
-        # If regex failed, try raw string just in case
-        try:
-            data_dict = json.loads(last_message)
-            status = data_dict.get("status")
-            extracted_data = data_dict.get("data")
-        except:
-            status = "parse_error"
+        print(f"DEBUG: No JSON found in agent response: {last_message}")
+        status = "parse_error"
 
-    # 9. Logic Output
+    # 4. Return Updates to Main Graph State
     if status == "success" and extracted_data:
         found_url = extracted_data.get("url")
         found_timestamp = extracted_data.get("time_stamp")
         found_summary = extracted_data.get("summary")
 
-        # Format: URL found
-        formatted_string = f"URL: {found_url}, TIME_STAMP: {found_timestamp}"
+        info_str = f"URL: {found_url}, TIME_STAMP: {found_timestamp}"
 
         return {
             "TimeStamp": str(found_timestamp),
-            "info": formatted_string,
+            "info": info_str,
             "summary": found_summary,
-            "URL_info": state.get("URL_info", []) + [formatted_string]
+            "URL_info": state.get("URL_info", []) + [info_str]
         }
     else:
-        # Format: URL not found (covers 'not_found', 'json_error', 'parse_error')
-        # This ensures the workflow proceeds to Scrape_with_jina
-        null_string = "URL: NULL, TIME_STAMP: NULL"
-
+        # Default fallback
+        null_str = "URL: NULL, TIME_STAMP: NULL"
         return {
             "TimeStamp": "NULL",
             "summary": None,
-            "info": null_string,
-            "URL_info": state.get("URL_info", []) + [null_string]
+            "info": null_str,
+            "URL_info": state.get("URL_info", []) + [null_str]
         }
