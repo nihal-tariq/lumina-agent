@@ -29,43 +29,35 @@ def lookup_university_smart(query: str):
     print(f"🔍 RAG Tool: Searching knowledge base for '{query}'...")
 
     try:
-        # --- A. RETRIEVAL PHASE ---
+
         persist_dir = "./chroma_db"
         collection_name = "university_db"
 
-        # Initialize Client & Embeddings
         chroma_client = PersistentClient(path=persist_dir)
         collection = chroma_client.get_or_create_collection(name=collection_name)
 
-        # Embed the query
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", api_key=api_key)
         query_vector = embeddings.embed_query(query)
 
-        # Query Chroma (Fetch top 4 chunks for broader context)
         results = collection.query(
             query_embeddings=[query_vector],
             n_results=4
         )
 
-        # Flatten documents
         docs = results.get("documents", [[]])[0]
         if not docs:
             return json.dumps({"found": False, "reason": "No documents in database."})
 
         raw_context = "\n\n---\n\n".join(docs)
 
-        # --- B. READER/REASONING PHASE (The Internal LLM) ---
-        # We spin up a lightweight LLM just to process this specific data
         reader_llm = ChatGoogleGenerativeAI(
             model="gemini-1.5-flash",
             temperature=0,
             api_key=api_key
         )
 
-        # Bind the schema to force structured analysis
         structured_reader = reader_llm.with_structured_output(RetrievedKnowledge)
 
-        # The Prompt specifically for the RAG task
         rag_prompt = f"""
         You are a Fact Extraction Agent. 
         Analyze the following retrieved context chunks regarding a university.
@@ -83,11 +75,8 @@ def lookup_university_smart(query: str):
         If the context is irrelevant to the query, set 'found' to False.
         """
 
-        # Invoke the internal chain
         extraction = structured_reader.invoke(rag_prompt)
 
-        # --- C. RETURN TO CHAT NODE ---
-        # We return the JSON string so the Main Chat LLM can read it as a tool output
         return extraction.json()
 
     except Exception as e:
