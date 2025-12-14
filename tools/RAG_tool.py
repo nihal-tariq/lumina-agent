@@ -26,7 +26,6 @@ def lookup_university_smart(query: str):
     else:
         print("🔴 DEBUG: No GOOGLE_API_KEY found in environment!")
 
-
     print(f"🔍 RAG Tool: Searching knowledge base for '{query}'...")
 
     try:
